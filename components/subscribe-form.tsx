@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,23 +21,43 @@ export function SubscribeForm() {
     }
 
     setStatus("loading")
+    setMessage("")
 
-    // Simulate API call
-         await fetch("http://localhost:8000/register_mail/", {
-    method: "POST",
-    headers: {
-        "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ "email": email })
-})
-    .then(response => response.json()) // Convert response to JSON
-    .then(data => {
-        console.log("Success:", data);
-    })
-    .catch(error => {
-        console.error("Error:", error);
-    });
+    try {
+      // Step 1: Check if already verified
+      const verifyRes = await fetch("https://lookt.co/api/verified/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
 
+      const verifyData = await verifyRes.json()
+
+      if (verifyData.verified) {
+        setStatus("success")
+        setMessage("You're already subscribed 🎉")
+        return
+      }
+
+      // Step 2: Register email if not verified
+      const registerRes = await fetch("https://lookt.co/api/register_mail/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+
+      const registerData = await registerRes.json()
+
+      if (registerRes.ok) {
+        setStatus("success")
+        setMessage(registerData.message || "Check your inbox to confirm your email ✉️")
+      } else {
+        throw new Error(registerData.error || "Something went wrong.")
+      }
+    } catch (err: any) {
+      setStatus("error")
+      setMessage(err.message || "Something went wrong.")
+    }
   }
 
   return (
@@ -75,4 +94,3 @@ export function SubscribeForm() {
     </div>
   )
 }
-

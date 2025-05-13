@@ -2,69 +2,119 @@
 
 import { useEffect, useState } from "react"
 
-interface CountdownProps {
-  targetDate: string
+interface CountdownTime {
+  years: number
+  months: number
+  days: number
+  hours: number
+  minutes: number
+  seconds: number
 }
 
-export function Countdown({ targetDate }: CountdownProps) {
-  const [timeLeft, setTimeLeft] = useState({
+export function Countdown() {
+  const [initialDiff, setInitialDiff] = useState<number | null>(null)
+  const [startTime, setStartTime] = useState<number | null>(null)
+  const [timeLeft, setTimeLeft] = useState<CountdownTime>({
+    years: 0,
+    months: 0,
     days: 0,
     hours: 0,
     minutes: 0,
     seconds: 0,
   })
 
+  const [error, setError] = useState(false)
+
   useEffect(() => {
-    const target = new Date(targetDate).getTime()
+    fetch("https://lookt.co/api/countdown/")
+      .then((res) => res.json())
+      .then((data) => {
+        const target = new Date(data.target_date).getTime()
+        const serverNow = new Date(data.server_now).getTime()
+        const clientNow = Date.now()
+        const diff = target - serverNow
+        setInitialDiff(diff)
+        setStartTime(clientNow)
+      })
+      .catch((err) => {
+        console.error("Failed to fetch countdown data", err)
+        setError(true)
+      })
+  }, [])
+
+  useEffect(() => {
+    if (initialDiff === null || startTime === null) return
 
     const interval = setInterval(() => {
-      const now = new Date().getTime()
-      const difference = target - now
+      const elapsed = Date.now() - startTime
+      const remaining = initialDiff - elapsed
 
-      if (difference <= 0) {
+      if (remaining <= 0) {
+        setTimeLeft({ years: 0, months: 0, days: 0, hours: 0, minutes: 0, seconds: 0 })
         clearInterval(interval)
-        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 })
         return
       }
 
-      const days = Math.floor(difference / (1000 * 60 * 60 * 24))
-      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60))
-      const seconds = Math.floor((difference % (1000 * 60)) / 1000)
+      const now = new Date()
+      const future = new Date(now.getTime() + remaining)
 
-      setTimeLeft({ days, hours, minutes, seconds })
+      let years = future.getUTCFullYear() - now.getUTCFullYear()
+      let months = future.getUTCMonth() - now.getUTCMonth()
+      let days = future.getUTCDate() - now.getUTCDate()
+      let hours = future.getUTCHours() - now.getUTCHours()
+      let minutes = future.getUTCMinutes() - now.getUTCMinutes()
+      let seconds = future.getUTCSeconds() - now.getUTCSeconds()
+
+      if (seconds < 0) { seconds += 60; minutes-- }
+      if (minutes < 0) { minutes += 60; hours-- }
+      if (hours < 0) { hours += 24; days-- }
+      if (days < 0) {
+        const prevMonthDays = new Date(now.getUTCFullYear(), now.getUTCMonth(), 0).getUTCDate()
+        days += prevMonthDays
+        months--
+      }
+      if (months < 0) { months += 12; years-- }
+
+      setTimeLeft({
+        years: Math.max(0, years),
+        months: Math.max(0, months),
+        days: Math.max(0, days),
+        hours: Math.max(0, hours),
+        minutes: Math.max(0, minutes),
+        seconds: Math.max(0, seconds),
+      })
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [targetDate])
+  }, [initialDiff, startTime])
+
+  const items = [
+    { label: "Years", value: timeLeft.years },
+    { label: "Months", value: timeLeft.months },
+    { label: "Days", value: timeLeft.days },
+    { label: "Hours", value: timeLeft.hours },
+    { label: "Minutes", value: timeLeft.minutes },
+    { label: "Seconds", value: timeLeft.seconds },
+  ]
+
+  if (error) {
+    return (
+      <div className="text-center text-red-400 text-sm">
+        Failed to load countdown. Please refresh the page.
+      </div>
+    )
+  }
 
   return (
-    <div className="grid grid-cols-4 gap-4 text-center">
-      <div className="flex flex-col items-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-slate-700 text-3xl font-bold">
-          {timeLeft.days}
+    <div className="grid grid-cols-3 sm:grid-cols-6 gap-4 text-center">
+      {items.map(({ label, value }) => (
+        <div key={label} className="flex flex-col items-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-slate-700 text-3xl font-bold">
+            {value.toString().padStart(2, "0")}
+          </div>
+          <span className="mt-2 text-sm text-slate-400">{label}</span>
         </div>
-        <span className="mt-2 text-sm text-slate-400">Days</span>
-      </div>
-      <div className="flex flex-col items-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-slate-700 text-3xl font-bold">
-          {timeLeft.hours}
-        </div>
-        <span className="mt-2 text-sm text-slate-400">Hours</span>
-      </div>
-      <div className="flex flex-col items-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-slate-700 text-3xl font-bold">
-          {timeLeft.minutes}
-        </div>
-        <span className="mt-2 text-sm text-slate-400">Minutes</span>
-      </div>
-      <div className="flex flex-col items-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-slate-700 text-3xl font-bold">
-          {timeLeft.seconds}
-        </div>
-        <span className="mt-2 text-sm text-slate-400">Seconds</span>
-      </div>
+      ))}
     </div>
   )
 }
-
